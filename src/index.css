@@ -1,14 +1,30 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;700;800&family=Fredoka:wght@300..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Outfit:wght@400;700;900&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Fredoka", sans-serif;
-  --font-accent: "Outfit", sans-serif;
+  --font-sans: "Outfit", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", sans-serif;
 }
 
-@layer utilities {
-  .animate-spin-slow {
-    animation: spin 3s linear infinite;
+@layer base {
+  body {
+    @apply antialiased bg-[#FDF8F8] text-[#2D2D2D];
   }
+}
+
+.cute-card {
+  @apply bg-white rounded-[40px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-rose-50/50;
+}
+
+.glass-card {
+  @apply bg-white/70 backdrop-blur-xl rounded-[32px] border border-white/40 shadow-sm;
+}
+
+.animate-spin-slow {
+  animation: spin 8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }

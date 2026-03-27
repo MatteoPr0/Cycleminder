@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, ChangeEvent } from 'react';
-import { Calendar as CalendarIcon, Info, RefreshCw, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, Info, RefreshCw, Clock, CheckCircle2, AlertCircle, ArrowDownCircle, ArrowUpCircle, Settings as SettingsIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // --- Tipi e Costanti ---
@@ -136,88 +136,109 @@ export default function App() {
     const pEndTime = activeCycle.periodEnd.getTime();
     const nextInsTime = activeCycle.nextInsertion.getTime();
 
+    let action = '';
+    let actionDetail = '';
+
     if (tTime < remTime) {
       status = 'Anello inserito';
       badge = 'Fase con anello';
-      badgeColor = 'bg-blue-100 text-blue-700 border-blue-200';
+      badgeColor = 'bg-rose-50 text-rose-500 border-rose-100';
       daysToPeriod = Math.ceil((pStartTime - tTime) / (1000 * 60 * 60 * 24));
+      action = 'Tieni l\'anello inserito.';
+      actionDetail = `Rimozione prevista per il ${formatDate(activeCycle.removal)}.`;
     } else if (tTime < pStartTime) {
-      status = 'Settimana senza anello (Pausa)';
-      badge = 'Ciclo probabile in arrivo';
-      badgeColor = 'bg-amber-100 text-amber-700 border-amber-200';
+      status = 'Pausa';
+      badge = 'Pausa - Ciclo in arrivo';
+      badgeColor = 'bg-indigo-50 text-indigo-500 border-indigo-100';
       daysToPeriod = Math.ceil((pStartTime - tTime) / (1000 * 60 * 60 * 24));
+      action = 'Anello rimosso.';
+      actionDetail = 'In attesa dell\'inizio del ciclo.';
     } else if (tTime < pEndTime) {
-      status = 'Finestra probabile ciclo';
-      badge = 'Ciclo probabile in corso';
-      badgeColor = 'bg-rose-100 text-rose-700 border-rose-200';
+      status = 'Ciclo';
+      badge = 'Ciclo in corso';
+      badgeColor = 'bg-pink-100 text-pink-600 border-pink-200';
       daysToPeriod = 0;
+      action = 'Ciclo in corso.';
+      actionDetail = `Reinserimento previsto per il ${formatDate(activeCycle.nextInsertion)}.`;
     } else {
-      status = 'In attesa di reinserimento';
+      status = 'Pausa';
       badge = 'Fase senza anello';
-      badgeColor = 'bg-slate-100 text-slate-700 border-slate-200';
+      badgeColor = 'bg-slate-50 text-slate-500 border-slate-100';
       daysToPeriod = Math.ceil((calculateForCycle(cycleCount + 1).periodStart.getTime() - tTime) / (1000 * 60 * 60 * 24));
+      action = 'Ciclo terminato.';
+      actionDetail = `Reinserimento previsto per il ${formatDate(activeCycle.nextInsertion)}.`;
     }
 
-    return { activeCycle, futureCycles, status, badge, badgeColor, daysToPeriod };
-  }, [refDateStr, today]);
+    // Calcolo progresso
+    let progress = 0;
+    if (tTime < remTime) {
+      progress = ((tTime - activeCycle.insertion.getTime()) / (remTime - activeCycle.insertion.getTime())) * 100;
+    } else if (tTime < nextInsTime) {
+      progress = ((tTime - remTime) / (nextInsTime - remTime)) * 100;
+    }
+
+    return { activeCycle, futureCycles, status, badge, badgeColor, daysToPeriod, progress, action, actionDetail };
+  }, [refDateStr, today, settings]);
 
   return (
-    <div className="min-h-screen bg-[#F5EDED] text-[#1D1B1E] font-sans selection:bg-[#EADDFF]">
-      <div className="max-w-md mx-auto px-4 py-8">
-        
-        {/* Header - Material 3 Style */}
-        <header className="mb-10 flex items-center justify-between px-2">
+    <div className="min-h-screen font-sans selection:bg-rose-100">
+      <div className="max-w-md mx-auto px-6 py-10">
+        {/* Header */}
+        <header className="flex items-center justify-between mb-10">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-[#FF4081] rounded-[24px] flex items-center justify-center text-white shadow-lg border-2 border-white/30">
-              <RefreshCw size={28} />
+            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-rose-50">
+              <div className="w-6 h-6 bg-rose-400 rounded-full animate-pulse" />
             </div>
-            <h1 className="text-3xl font-black tracking-tight font-display text-[#31111D]">Cycle Tracker</h1>
+            <div>
+              <h1 className="text-xl font-black tracking-tight font-display">Cycle Tracker</h1>
+              <p className="text-[10px] font-bold text-rose-300 uppercase tracking-widest">Medical Grade • Pro</p>
+            </div>
           </div>
           <button 
             onClick={() => setShowSettings(!showSettings)}
-            className="w-14 h-14 flex items-center justify-center rounded-full bg-white hover:bg-[#EADDFF] transition-all text-[#49454F] shadow-md active:scale-90 border border-slate-100"
+            className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm border border-rose-50 active:scale-90 transition-all"
           >
-            <Info size={28} />
+            <Info className="w-5 h-5 text-slate-400" />
           </button>
         </header>
 
-        {/* Settings Panel - Material 3 Surface */}
+        {/* Settings Panel - Clean Surface */}
         <AnimatePresence>
           {showSettings && (
             <motion.section 
-              initial={{ height: 0, opacity: 0, scale: 0.9 }}
-              animate={{ height: 'auto', opacity: 1, scale: 1 }}
-              exit={{ height: 0, opacity: 0, scale: 0.9 }}
-              className="overflow-hidden bg-[#EDE7F6] rounded-[50px] p-8 mb-10 border-2 border-[#CAC4D0] shadow-xl"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden bg-white rounded-[32px] p-8 mb-12 border border-slate-100 shadow-sm"
             >
-              <h3 className="text-sm font-black uppercase tracking-[0.3em] mb-8 text-[#6750A4] text-center">Configurazione</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] mb-8 text-slate-400 text-center">Configurazione Clinica</h3>
               <div className="space-y-6">
-                <div className="bg-white rounded-[30px] p-6 shadow-sm border border-slate-100">
-                  <label className="text-[10px] font-black text-[#49454F] uppercase tracking-widest mb-2 block">Data Riferimento (Mercoledì)</label>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Data Riferimento (Mercoledì)</label>
                   <input 
                     type="date" 
                     value={refDateStr}
                     onChange={handleDateChange}
-                    className="w-full bg-transparent border-b-4 border-[#FF4081] py-3 outline-none text-xl font-black font-display"
+                    className="w-full bg-slate-50 rounded-2xl px-6 py-4 outline-none text-lg font-bold font-display border border-transparent focus:border-[#FF4081] transition-all"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-6">
-                  <div className="bg-white rounded-[30px] p-6 shadow-sm border border-slate-100">
-                    <label className="text-[10px] font-black text-[#49454F] uppercase tracking-widest mb-2 block">Durata Anello</label>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Durata Anello</label>
                     <input 
                       type="number" 
                       value={settings.ringDuration}
                       onChange={(e) => setSettings({...settings, ringDuration: parseInt(e.target.value) || 21})}
-                      className="w-full bg-transparent border-b-4 border-[#6750A4] py-3 outline-none text-xl font-black font-display"
+                      className="w-full bg-slate-50 rounded-2xl px-6 py-4 outline-none text-lg font-bold font-display border border-transparent focus:border-[#FF4081] transition-all"
                     />
                   </div>
-                  <div className="bg-white rounded-[30px] p-6 shadow-sm border border-slate-100">
-                    <label className="text-[10px] font-black text-[#49454F] uppercase tracking-widest mb-2 block">Inizio Ciclo</label>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Inizio Ciclo</label>
                     <input 
                       type="number" 
                       value={settings.periodStartOffset}
                       onChange={(e) => setSettings({...settings, periodStartOffset: parseInt(e.target.value) || 23})}
-                      className="w-full bg-transparent border-b-4 border-[#6750A4] py-3 outline-none text-xl font-black font-display"
+                      className="w-full bg-slate-50 rounded-2xl px-6 py-4 outline-none text-lg font-bold font-display border border-transparent focus:border-[#FF4081] transition-all"
                     />
                   </div>
                 </div>
@@ -228,157 +249,150 @@ export default function App() {
 
         <AnimatePresence mode="wait">
           {cycleData ? (
-            <motion.div
-              key="results"
-              initial={{ opacity: 0, y: 30 }}
+            <motion.div 
+              key="dashboard"
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="space-y-8"
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
             >
-              {/* HERO CARD - Prioritizing "Weeks to Period" */}
-              <div className="bg-[#FF4081] rounded-[60px] p-12 shadow-2xl text-white relative overflow-hidden border-4 border-white/40">
-                <div className="absolute -top-20 -right-20 w-60 h-60 bg-white/20 rounded-full blur-[80px]"></div>
-                <div className="absolute -bottom-20 -left-20 w-60 h-60 bg-[#7C4DFF]/40 rounded-full blur-[80px]"></div>
+              {/* Hero Status - Cute & Unambiguous */}
+              <motion.div 
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                className="cute-card p-8 relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-32 h-32 bg-rose-50 rounded-full -mr-16 -mt-16 opacity-50" />
                 
-                <div className="flex flex-col items-center text-center relative z-10">
-                  <div className="px-6 py-2 rounded-full text-[11px] font-black border-2 border-white/30 mb-10 uppercase tracking-[0.3em] bg-white/20 backdrop-blur-md">
+                <div className="relative z-10">
+                  <div className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${cycleData.badgeColor} mb-6`}>
                     {cycleData.badge}
                   </div>
                   
-                  {cycleData.daysToPeriod > 0 ? (
-                    <div className="flex flex-col items-center">
-                      <div className="flex items-baseline gap-3 mb-1">
-                        <span className="text-[10rem] font-black tracking-tighter font-display leading-[0.8]">
-                          {Math.floor(cycleData.daysToPeriod / 7)}
-                        </span>
-                        <div className="flex flex-col items-start">
-                          <span className="text-4xl font-black font-display opacity-90 leading-none">
-                            sett.
-                          </span>
-                        </div>
-                      </div>
-                      <div className="text-2xl font-black opacity-80 font-display tracking-tight mt-4">
-                        e {cycleData.daysToPeriod % 7} giorni al ciclo
-                      </div>
+                  <div className="flex flex-col mb-2">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-7xl font-black font-display tracking-tighter text-[#2D2D2D]">
+                        {cycleData.daysToPeriod >= 7 ? Math.floor(cycleData.daysToPeriod / 7) : cycleData.daysToPeriod}
+                      </span>
+                      <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+                        {cycleData.daysToPeriod >= 7 ? 'Settimane' : 'Giorni al ciclo'}
+                      </span>
                     </div>
-                  ) : cycleData.daysToPeriod === 0 ? (
-                    <div className="py-8">
-                      <div className="text-6xl font-black tracking-tight mb-4 font-display leading-tight">Ciclo in corso</div>
-                      <div className="flex items-center justify-center gap-4 font-black text-xl opacity-90">
-                        <AlertCircle size={32} />
-                        <span className="font-display">Finestra probabile</span>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              {/* Confirmation Prompt - Material Style */}
-              {today >= cycleData.activeCycle.nextInsertion && (
-                <motion.div 
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  className="bg-[#7C4DFF] rounded-[50px] p-10 shadow-2xl border-4 border-white/30 text-white"
-                >
-                  <h3 className="text-3xl font-black mb-4 flex items-center gap-4 font-display">
-                    <RefreshCw size={36} className="animate-spin-slow" />
-                    È mercoledì!
-                  </h3>
-                  <p className="text-lg mb-8 font-bold opacity-90 leading-relaxed font-display">Hai reinserito l'anello oggi? Conferma per aggiornare il calendario.</p>
-                  <button 
-                    onClick={confirmNextInsertion}
-                    className="w-full bg-white text-[#7C4DFF] font-black py-6 rounded-[30px] shadow-xl active:scale-95 transition-all text-xl uppercase tracking-widest font-display"
-                  >
-                    Conferma Reinserimento
-                  </button>
-                </motion.div>
-              )}
-
-              {/* KEY INFO GRID - Optimized for Start/End days */}
-              <div className="grid grid-cols-2 gap-6">
-                <div className="bg-[#E3F2FD] rounded-[50px] p-8 shadow-lg border-2 border-white flex flex-col justify-between min-h-[200px] relative overflow-hidden group">
-                  <div className="absolute -top-4 -right-4 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                    <CalendarIcon size={120} />
+                    {cycleData.daysToPeriod >= 7 && cycleData.daysToPeriod % 7 > 0 && (
+                      <p className="text-sm font-bold text-slate-400 uppercase tracking-widest -mt-2">
+                        e {cycleData.daysToPeriod % 7} giorni
+                      </p>
+                    )}
                   </div>
-                  <div>
-                    <div className="w-12 h-12 bg-white rounded-[20px] flex items-center justify-center text-[#1976D2] mb-6 shadow-sm">
-                      <CalendarIcon size={24} />
+                  
+                  <p className="text-lg font-bold text-slate-600 mb-8">{cycleData.status}</p>
+
+                  {/* Progress Bar */}
+                  <div className="space-y-3">
+                    <div className="h-3 w-full bg-rose-50 rounded-full overflow-hidden">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${cycleData.progress}%` }}
+                        className="h-full bg-gradient-to-r from-rose-300 to-rose-400 rounded-full"
+                      />
                     </div>
-                    <p className="text-[10px] font-black text-[#1976D2] uppercase tracking-[0.3em] mb-2">Inizio Ciclo</p>
-                  </div>
-                  <div>
-                    <p className="text-5xl font-black text-[#0D47A1] font-display leading-none mb-2">
-                      {cycleData.activeCycle.periodStart.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })}
-                    </p>
-                    <p className="text-[10px] font-black text-[#1976D2] uppercase tracking-[0.2em] opacity-60">
-                      {getDayName(cycleData.activeCycle.periodStart)}
-                    </p>
+                    <div className="flex justify-between text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                      <span>Inizio</span>
+                      <span>Prossimo</span>
+                    </div>
                   </div>
                 </div>
+              </motion.div>
 
-                <div className="bg-[#FBE9E7] rounded-[50px] p-8 shadow-lg border-2 border-white flex flex-col justify-between min-h-[200px] relative overflow-hidden group">
-                  <div className="absolute -top-4 -right-4 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                    <Clock size={120} />
+              {/* Action Card - Unambiguous */}
+              <div className="bg-indigo-500 rounded-[40px] p-8 text-white shadow-xl shadow-indigo-100 relative overflow-hidden">
+                <div className="absolute bottom-0 right-0 w-24 h-24 bg-white/10 rounded-full -mb-12 -mr-12" />
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70 mb-4">Cosa fare oggi</h3>
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-6 h-6" />
                   </div>
                   <div>
-                    <div className="w-12 h-12 bg-white rounded-[20px] flex items-center justify-center text-[#D84315] mb-6 shadow-sm">
-                      <Clock size={24} />
-                    </div>
-                    <p className="text-[10px] font-black text-[#D84315] uppercase tracking-[0.3em] mb-2">Fine Ciclo</p>
-                  </div>
-                  <div>
-                    <p className="text-5xl font-black text-[#BF360C] font-display leading-none mb-2">
-                      {cycleData.activeCycle.periodEnd.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })}
+                    <p className="text-lg font-bold leading-tight mb-1">
+                      {cycleData.action}
                     </p>
-                    <p className="text-[10px] font-black text-[#D84315] uppercase tracking-[0.2em] opacity-60">
-                      {getDayName(cycleData.activeCycle.periodEnd)}
+                    <p className="text-xs opacity-70 font-medium">
+                      {cycleData.actionDetail}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Secondary Info - Compact */}
-              <div className="bg-white/40 backdrop-blur-xl rounded-full p-3 flex items-center justify-between border-2 border-white shadow-md">
-                <div className="flex-1 bg-white rounded-full py-4 px-6 flex items-center justify-center gap-4 shadow-sm">
-                  <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center text-amber-600">
-                    <Clock size={16} />
+              {/* Grid Details */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="cute-card p-6">
+                  <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-2">Inizio Ciclo</p>
+                  <p className="text-xl font-black font-display">{formatDate(cycleData.activeCycle.periodStart).split(' ')[0]}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{formatDate(cycleData.activeCycle.periodStart).split(' ')[1]}</p>
+                </div>
+                <div className="cute-card p-6">
+                  <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-2">Fine Ciclo</p>
+                  <p className="text-xl font-black font-display">{formatDate(cycleData.activeCycle.periodEnd).split(' ')[0]}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{formatDate(cycleData.activeCycle.periodEnd).split(' ')[1]}</p>
+                </div>
+              </div>
+
+              {/* Secondary Details */}
+              <div className="cute-card p-8 space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center">
+                      <ArrowDownCircle className="w-5 h-5 text-rose-400" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Rimozione Anello</p>
+                      <p className="text-sm font-bold">{formatDate(cycleData.activeCycle.removal)}</p>
+                    </div>
                   </div>
-                  <div className="text-left">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Rimozione</p>
-                    <p className="text-sm font-black font-display">{formatDate(cycleData.activeCycle.removal).slice(0, 5)}</p>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black text-rose-400 font-display">Mer.</p>
                   </div>
                 </div>
-                <div className="w-4"></div>
-                <div className="flex-1 bg-white rounded-full py-4 px-6 flex items-center justify-center gap-4 shadow-sm">
-                  <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
-                    <CheckCircle2 size={16} />
+
+                <div className="h-px bg-rose-50/50" />
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
+                      <ArrowUpCircle className="w-5 h-5 text-indigo-400" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Reinserimento</p>
+                      <p className="text-sm font-bold">{formatDate(cycleData.activeCycle.nextInsertion)}</p>
+                    </div>
                   </div>
-                  <div className="text-left">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Reinserimento</p>
-                    <p className="text-sm font-black font-display">{formatDate(cycleData.activeCycle.nextInsertion).slice(0, 5)}</p>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black text-indigo-400 font-display">Mer.</p>
                   </div>
                 </div>
               </div>
 
-              {/* Timeline - Material List */}
-              <div className="pt-8 px-2">
-                <h3 className="text-sm font-black text-[#1D1B1E] uppercase tracking-[0.4em] mb-8 text-center">Calendario Futuro</h3>
-                <div className="space-y-6">
+              {/* Timeline Futura */}
+              <div className="space-y-4">
+                <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] px-2">Prossimi Cicli</h3>
+                <div className="space-y-3">
                   {cycleData.futureCycles.slice(1).map((cycle, idx) => (
-                    <div key={idx} className="bg-white/70 backdrop-blur-md rounded-[40px] p-6 flex items-center justify-between border-2 border-white shadow-lg hover:bg-white transition-all">
-                      <div className="flex items-center gap-5">
-                        <div className="w-14 h-14 bg-[#EDE7F6] rounded-[20px] flex items-center justify-center text-[#6750A4] font-black text-lg font-display">
-                          {idx + 1}
+                    <div key={idx} className="cute-card p-6 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center">
+                          <CalendarIcon className="w-5 h-5 text-rose-300" />
                         </div>
                         <div>
-                          <p className="text-lg font-black text-[#1D1B1E] capitalize font-display">{cycle.insertion.toLocaleDateString('it-IT', { month: 'long' })}</p>
-                          <p className="text-xs font-bold text-[#49454F] tracking-widest opacity-60">
+                          <p className="text-sm font-black text-[#2D2D2D] capitalize font-display">
+                            {cycle.periodStart.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
+                          </p>
+                          <p className="text-[10px] font-bold text-slate-400 tracking-widest">
                             {formatDate(cycle.periodStart).slice(0, 5)} — {formatDate(cycle.periodEnd).slice(0, 5)}
                           </p>
                         </div>
                       </div>
-                      <div className="text-right bg-[#FF4081] px-6 py-3 rounded-[24px] text-white shadow-md">
-                        <p className="text-sm font-black capitalize font-display">{getDayName(cycle.periodStart).slice(0, 3)}.</p>
-                        <p className="text-[9px] font-black uppercase tracking-tighter opacity-80">Inizio</p>
+                      <div className="text-right">
+                        <p className="text-xs font-black text-rose-400 font-display">{getDayName(cycle.periodStart).slice(0, 3)}.</p>
                       </div>
                     </div>
                   ))}
@@ -387,29 +401,24 @@ export default function App() {
             </motion.div>
           ) : (
             <div className="text-center py-24 px-10">
-              <div className="bg-white w-32 h-32 rounded-[60px] flex items-center justify-center mx-auto mb-10 shadow-2xl border-4 border-[#FF4081]/10">
-                <CalendarIcon className="text-[#FF4081] w-16 h-16 opacity-30" />
+              <div className="bg-white w-24 h-24 rounded-[40px] flex items-center justify-center mx-auto mb-10 shadow-sm border border-rose-50">
+                <CalendarIcon className="text-rose-100 w-10 h-10" />
               </div>
-              <h2 className="text-3xl font-black text-[#31111D] font-display mb-4">Pronta a iniziare?</h2>
-              <p className="text-[#49454F] text-lg font-medium mb-12 leading-relaxed font-display">Configura la data dell'ultimo mercoledì di inserimento per attivare il tracker.</p>
+              <h2 className="text-2xl font-black text-[#2D2D2D] font-display mb-3">Ciao!</h2>
+              <p className="text-slate-400 text-sm font-medium mb-10 leading-relaxed">Configura la data dell'ultimo mercoledì di inserimento per iniziare.</p>
               <button 
                 onClick={() => setShowSettings(true)}
-                className="bg-[#FF4081] text-white px-12 py-6 rounded-full font-black shadow-2xl active:scale-95 transition-all uppercase tracking-[0.2em] text-lg font-display"
+                className="bg-rose-400 text-white px-10 py-5 rounded-2xl font-black shadow-lg active:scale-95 transition-all uppercase tracking-widest text-xs font-display"
               >
-                Configura Ora
+                Inizia
               </button>
             </div>
           )}
         </AnimatePresence>
 
-        {/* Disclaimer - Discrete Material Style */}
-        <footer className="mt-20 text-center px-10">
-          <div className="bg-white/40 backdrop-blur-md rounded-[30px] p-6 border-2 border-white shadow-sm">
-            <p className="text-[11px] leading-relaxed text-[#49454F] font-bold italic font-display">
-              Questa app fornisce solo una stima orientativa e non sostituisce indicazioni mediche o un metodo contraccettivo.
-            </p>
-          </div>
-          <p className="mt-10 text-[10px] font-black text-[#49454F] uppercase tracking-[0.5em] opacity-30">v1.2 • Personal Use Only</p>
+        {/* Footer */}
+        <footer className="mt-20 text-center pb-12 opacity-30">
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.5em]">Cycle Tracker • Professional Edition</p>
         </footer>
 
       </div>
