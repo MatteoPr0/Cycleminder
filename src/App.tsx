@@ -338,7 +338,9 @@ export default function App() {
                     <p className="text-lg font-bold text-slate-800">
                       {formatDate(cycleData.activeCycle.periodStart)} - {formatDate(cycleData.activeCycle.periodEnd)}
                     </p>
-                    <p className="text-xs text-slate-400">Domenica - Mercoledì</p>
+                    <p className="text-xs text-slate-400 capitalize">
+                      {getDayName(cycleData.activeCycle.periodStart)} - {getDayName(cycleData.activeCycle.periodEnd)}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -358,7 +360,12 @@ export default function App() {
                           <span className="font-medium">Reinserimento:</span>
                           <span className="text-slate-700 font-semibold">{formatDate(cycle.nextInsertion)}</span>
                           <span className="font-medium">Ciclo:</span>
-                          <span className="text-rose-500 font-bold">{formatDate(cycle.periodStart)} - {formatDate(cycle.periodEnd)}</span>
+                          <span className="text-rose-500 font-bold">
+                            {formatDate(cycle.periodStart)} - {formatDate(cycle.periodEnd)}
+                            <span className="block text-[10px] font-normal text-slate-400 capitalize">
+                              {getDayName(cycle.periodStart)} - {getDayName(cycle.periodEnd)}
+                            </span>
+                          </span>
                         </div>
                       </div>
                     </div>
