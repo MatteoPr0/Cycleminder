@@ -4,27 +4,55 @@
 @theme {
   --font-sans: "Outfit", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Outfit", sans-serif;
+  
+  /* Material 3 / Android 17 inspired palette */
+  --color-m3-primary: #6750A4;
+  --color-m3-on-primary: #FFFFFF;
+  --color-m3-primary-container: #EADDFF;
+  --color-m3-on-primary-container: #21005D;
+  
+  --color-m3-secondary: #625B71;
+  --color-m3-on-secondary: #FFFFFF;
+  --color-m3-secondary-container: #E8DEF8;
+  --color-m3-on-secondary-container: #1D192B;
+  
+  --color-m3-tertiary: #7D5260;
+  --color-m3-on-tertiary: #FFFFFF;
+  --color-m3-tertiary-container: #FFD8E4;
+  --color-m3-on-tertiary-container: #31111D;
+  
+  --color-m3-surface: #FEF7FF;
+  --color-m3-on-surface: #1D1B20;
+  --color-m3-surface-variant: #E7E0EB;
+  --color-m3-on-surface-variant: #49454F;
+  
+  --color-m3-error: #B3261E;
+  --color-m3-on-error: #FFFFFF;
 }
 
 @layer base {
   body {
-    @apply antialiased bg-[#FDF8F8] text-[#2D2D2D];
+    @apply antialiased text-m3-on-surface min-h-screen;
+    background: radial-gradient(circle at 0% 0%, #FF80AB 0%, transparent 60%),
+                radial-gradient(circle at 100% 0%, #7C4DFF 0%, transparent 60%),
+                radial-gradient(circle at 100% 100%, #FF4081 0%, transparent 60%),
+                radial-gradient(circle at 0% 100%, #651FFF 0%, transparent 60%),
+                #FDF8F8;
   }
 }
 
-.cute-card {
-  @apply bg-white rounded-[40px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-rose-50/50;
+.m3-card {
+  @apply bg-white/40 backdrop-blur-xl rounded-[32px] p-6 transition-all duration-300 border border-white/50;
 }
 
-.glass-card {
-  @apply bg-white/70 backdrop-blur-xl rounded-[32px] border border-white/40 shadow-sm;
+.m3-card-elevated {
+  @apply bg-white/80 backdrop-blur-md rounded-[32px] p-6 shadow-sm border border-white/50 transition-all duration-300 hover:shadow-md;
 }
 
-.animate-spin-slow {
-  animation: spin 8s linear infinite;
+.m3-button-primary {
+  @apply bg-m3-primary text-m3-on-primary rounded-full px-6 py-3 font-bold transition-all active:scale-95;
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+.m3-badge {
+  @apply rounded-full px-4 py-1 text-xs font-bold uppercase tracking-wider;
 }
