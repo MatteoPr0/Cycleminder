@@ -10,6 +10,9 @@ interface CycleDates {
   periodStart: Date;
   periodEnd: Date;
   nextInsertion: Date;
+  ovulation: Date;
+  fertileStart: Date;
+  fertileEnd: Date;
 }
 
 interface AppSettings {
@@ -17,6 +20,11 @@ interface AppSettings {
   breakDuration: number;
   periodStartOffset: number;
   periodEndOffset: number;
+  theoreticalCycleLength: number;
+  ovulationDay: number;
+  fertileWindowBefore: number;
+  fertileWindowAfter: number;
+  showOvulation: boolean;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -24,6 +32,11 @@ const DEFAULT_SETTINGS: AppSettings = {
   breakDuration: 7,
   periodStartOffset: 23, // Venerdì (21 + 2 giorni) - Standard Clinico
   periodEndOffset: 28,   // Mercoledì successivo
+  theoreticalCycleLength: 28,
+  ovulationDay: 14,
+  fertileWindowBefore: 5,
+  fertileWindowAfter: 1,
+  showOvulation: true,
 };
 
 // --- Utility Functions ---
@@ -55,7 +68,15 @@ export default function App() {
 
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('cycle_settings');
-    return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return { ...DEFAULT_SETTINGS, ...parsed };
+      } catch (e) {
+        return DEFAULT_SETTINGS;
+      }
+    }
+    return DEFAULT_SETTINGS;
   });
 
   const [showSettings, setShowSettings] = useState(false);
@@ -107,12 +128,19 @@ export default function App() {
     
     const calculateForCycle = (n: number): CycleDates => {
       const start = addDays(refDate, n * totalCycleDays);
+      const periodStart = addDays(start, settings.periodStartOffset);
+      // L'ovulazione teorica avviene circa 14 giorni PRIMA del sanguinamento
+      const ovulation = addDays(periodStart, -settings.ovulationDay);
+      
       return {
         insertion: start,
         removal: addDays(start, settings.ringDuration),
-        periodStart: addDays(start, settings.periodStartOffset),
+        periodStart: periodStart,
         periodEnd: addDays(start, settings.periodEndOffset),
         nextInsertion: addDays(start, totalCycleDays),
+        ovulation: ovulation,
+        fertileStart: addDays(ovulation, -settings.fertileWindowBefore),
+        fertileEnd: addDays(ovulation, settings.fertileWindowAfter),
       };
     };
 
@@ -131,6 +159,13 @@ export default function App() {
     let daysToPeriod = -1;
 
     const tTime = today.getTime();
+    const insTime = activeCycle.insertion.getTime();
+    const diffInsDays = Math.floor((tTime - insTime) / (1000 * 60 * 60 * 24));
+    
+    // Calcolo settimana dell'anello (1, 2, 3 o Pausa)
+    let ringWeek = Math.ceil((diffInsDays + 1) / 7);
+    if (ringWeek > 3 && diffInsDays < totalCycleDays) ringWeek = 4; // Settimana di pausa
+    
     const remTime = activeCycle.removal.getTime();
     const pStartTime = activeCycle.periodStart.getTime();
     const pEndTime = activeCycle.periodEnd.getTime();
@@ -189,7 +224,10 @@ export default function App() {
       progress = ((tTime - remTime) / (nextInsTime - remTime)) * 100;
     }
 
-    return { activeCycle, futureCycles, status, badge, heroBg, heroText, heroGradient, daysToPeriod, progress, action, actionDetail };
+    let isFertile = tTime >= activeCycle.fertileStart.getTime() && tTime <= activeCycle.fertileEnd.getTime();
+    let isOvulation = today.toDateString() === activeCycle.ovulation.toDateString();
+
+    return { activeCycle, futureCycles, status, badge, heroBg, heroText, heroGradient, daysToPeriod, progress, action, actionDetail, isFertile, isOvulation, ringWeek, diffInsDays };
   }, [refDateStr, today, settings]);
 
   return (
@@ -213,27 +251,27 @@ export default function App() {
         />
       </div>
 
-      <div className="max-w-md mx-auto px-6 py-12 relative z-10">
-        {/* Header - Android Style */}
-        <header className="flex items-center justify-between mb-12">
-          <div className="flex items-center gap-4">
+      <div className="max-w-md mx-auto px-4 py-6 relative z-10">
+        {/* Header - Android Style Compact */}
+        <header className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
             <motion.div 
               whileHover={{ rotate: 15, scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              className="w-14 h-14 bg-gradient-to-br from-pink-500 to-purple-600 rounded-[24px] flex items-center justify-center shadow-lg shadow-pink-500/30"
+              className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-600 rounded-[16px] flex items-center justify-center shadow-lg shadow-pink-500/30"
             >
-              <CalendarIcon className="w-7 h-7 text-white" />
+              <CalendarIcon className="w-5 h-5 text-white" />
             </motion.div>
             <div>
-              <h1 className="text-2xl font-black tracking-tight font-display text-m3-on-surface">Cycle Tracker</h1>
-              <p className="text-xs font-bold text-pink-600 uppercase tracking-widest">Partner Edition</p>
+              <h1 className="text-xl font-black tracking-tight font-display text-m3-on-surface">Cycle Tracker</h1>
+              <p className="text-[10px] font-bold text-pink-600 uppercase tracking-widest">Partner Edition</p>
             </div>
           </div>
           <button 
             onClick={() => setShowSettings(!showSettings)}
-            className="w-12 h-12 bg-white/60 backdrop-blur-md rounded-full flex items-center justify-center active:scale-90 transition-all shadow-md border border-white/50"
+            className="w-10 h-10 bg-white/60 backdrop-blur-md rounded-full flex items-center justify-center active:scale-90 transition-all shadow-md border border-white/50"
           >
-            <SettingsIcon className="w-6 h-6 text-m3-on-surface-variant" />
+            <SettingsIcon className="w-5 h-5 text-m3-on-surface-variant" />
           </button>
         </header>
 
@@ -241,40 +279,96 @@ export default function App() {
         <AnimatePresence>
           {showSettings && (
             <motion.section 
-              initial={{ height: 0, opacity: 0, scale: 0.95 }}
-              animate={{ height: 'auto', opacity: 1, scale: 1 }}
-              exit={{ height: 0, opacity: 0, scale: 0.95 }}
-              className="overflow-hidden bg-white/70 backdrop-blur-xl rounded-[32px] p-8 mb-12 border border-white/60 shadow-2xl shadow-m3-primary/10"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="bg-white/70 backdrop-blur-xl rounded-[24px] p-6 mb-6 border border-white/60 shadow-2xl shadow-m3-primary/10"
             >
-              <h3 className="text-xs font-black uppercase tracking-[0.3em] mb-8 text-m3-on-secondary-container/70 text-center">Configurazione</h3>
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-m3-on-secondary-container/50 uppercase tracking-widest block px-2">Data Riferimento</label>
+              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] mb-6 text-m3-on-secondary-container/70 text-center">Configurazione</h3>
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-m3-on-secondary-container/50 uppercase tracking-widest block px-2">Data Riferimento</label>
                   <input 
                     type="date" 
                     value={refDateStr}
                     onChange={handleDateChange}
-                    className="w-full bg-white/90 rounded-[24px] px-6 py-4 outline-none text-lg font-bold font-display border-2 border-transparent focus:border-pink-500 transition-all shadow-inner"
+                    className="w-full bg-white/90 rounded-[16px] px-4 py-3 outline-none text-base font-bold font-display border-2 border-transparent focus:border-pink-500 transition-all shadow-inner"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-m3-on-secondary-container/50 uppercase tracking-widest block px-2">Durata Anello</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-m3-on-secondary-container/50 uppercase tracking-widest block px-2">Durata Anello</label>
                     <input 
                       type="number" 
                       value={settings.ringDuration}
                       onChange={(e) => setSettings({...settings, ringDuration: parseInt(e.target.value) || 21})}
-                      className="w-full bg-white/90 rounded-[24px] px-6 py-4 outline-none text-lg font-bold font-display border-2 border-transparent focus:border-pink-500 transition-all shadow-inner"
+                      className="w-full bg-white/90 rounded-[16px] px-4 py-3 outline-none text-base font-bold font-display border-2 border-transparent focus:border-pink-500 transition-all shadow-inner"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-m3-on-secondary-container/50 uppercase tracking-widest block px-2">Inizio Ciclo</label>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-m3-on-secondary-container/50 uppercase tracking-widest block px-2">Durata Pausa</label>
+                    <input 
+                      type="number" 
+                      value={settings.breakDuration}
+                      onChange={(e) => setSettings({...settings, breakDuration: parseInt(e.target.value) || 7})}
+                      className="w-full bg-white/90 rounded-[16px] px-4 py-3 outline-none text-base font-bold font-display border-2 border-transparent focus:border-pink-500 transition-all shadow-inner"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-m3-on-secondary-container/50 uppercase tracking-widest block px-2">Inizio Ciclo (gg)</label>
                     <input 
                       type="number" 
                       value={settings.periodStartOffset}
                       onChange={(e) => setSettings({...settings, periodStartOffset: parseInt(e.target.value) || 23})}
-                      className="w-full bg-white/90 rounded-[24px] px-6 py-4 outline-none text-lg font-bold font-display border-2 border-transparent focus:border-pink-500 transition-all shadow-inner"
+                      className="w-full bg-white/90 rounded-[16px] px-4 py-3 outline-none text-base font-bold font-display border-2 border-transparent focus:border-pink-500 transition-all shadow-inner"
                     />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-m3-on-secondary-container/50 uppercase tracking-widest block px-2">Fine Ciclo (gg)</label>
+                    <input 
+                      type="number" 
+                      value={settings.periodEndOffset}
+                      onChange={(e) => setSettings({...settings, periodEndOffset: parseInt(e.target.value) || 28})}
+                      className="w-full bg-white/90 rounded-[16px] px-4 py-3 outline-none text-base font-bold font-display border-2 border-transparent focus:border-pink-500 transition-all shadow-inner"
+                    />
+                  </div>
+                </div>
+                
+                <div className="pt-2 border-t border-m3-surface-variant/30">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="text-[9px] font-black uppercase tracking-widest text-m3-on-secondary-container/40">Ovulazione Teorica</h4>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={settings.showOvulation}
+                        onChange={(e) => setSettings({...settings, showOvulation: e.target.checked})}
+                        className="w-3 h-3 accent-pink-500"
+                      />
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-m3-on-surface-variant/60">Attiva</span>
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-m3-on-secondary-container/50 uppercase tracking-widest block px-2">Giorno Ciclo</label>
+                      <input 
+                        type="number" 
+                        value={settings.ovulationDay}
+                        onChange={(e) => setSettings({...settings, ovulationDay: parseInt(e.target.value) || 14})}
+                        className="w-full bg-white/90 rounded-[16px] px-4 py-3 outline-none text-base font-bold font-display border-2 border-transparent focus:border-pink-500 transition-all shadow-inner"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-m3-on-secondary-container/50 uppercase tracking-widest block px-2">Finestra (gg)</label>
+                      <input 
+                        type="number" 
+                        value={settings.fertileWindowBefore}
+                        onChange={(e) => setSettings({...settings, fertileWindowBefore: parseInt(e.target.value) || 5})}
+                        className="w-full bg-white/90 rounded-[16px] px-4 py-3 outline-none text-base font-bold font-display border-2 border-transparent focus:border-pink-500 transition-all shadow-inner"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -289,136 +383,187 @@ export default function App() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="space-y-8"
+              className="space-y-4"
             >
-              {/* Hero Status - Android 17 Style */}
+              {/* Hero Status - Android 17 Style Compact */}
               <motion.div 
-                animate={{ y: [0, -8, 0] }}
+                animate={{ y: [0, -4, 0] }}
                 transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-                className={`bg-gradient-to-br ${cycleData.heroGradient} rounded-[48px] p-10 relative overflow-hidden shadow-2xl shadow-pink-500/20 border border-white/40`}
+                className={`bg-gradient-to-br ${cycleData.heroGradient} rounded-[32px] p-6 relative overflow-hidden shadow-2xl shadow-pink-500/20 border border-white/40`}
               >
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/30 rounded-full -mr-32 -mt-32 blur-2xl" />
-                <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/20 rounded-full -ml-24 -mb-24 blur-xl" />
+                <div className="absolute top-0 right-0 w-48 h-48 bg-white/30 rounded-full -mr-24 -mt-24 blur-2xl" />
                 
                 <div className="relative z-10">
-                  <div className={`inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-white/50 ${cycleData.heroText} mb-8 backdrop-blur-sm border border-white/40`}>
-                    {cycleData.badge}
-                  </div>
-                  
-                  <div className="flex flex-col mb-4">
-                    <div className="flex items-baseline gap-3">
-                      <span className={`text-8xl font-black font-display tracking-tighter ${cycleData.heroText} drop-shadow-sm`}>
-                        {cycleData.daysToPeriod >= 7 ? Math.floor(cycleData.daysToPeriod / 7) : cycleData.daysToPeriod}
-                      </span>
-                      <span className={`text-lg font-black ${cycleData.heroText} opacity-70 uppercase tracking-widest`}>
-                        {cycleData.daysToPeriod >= 7 ? 'Sett.' : 'Giorni'}
-                      </span>
+                  <div className="flex justify-between items-start mb-4">
+                    <div className={`inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-white/50 ${cycleData.heroText} backdrop-blur-sm border border-white/40`}>
+                      {cycleData.badge}
                     </div>
-                    {cycleData.daysToPeriod >= 7 && cycleData.daysToPeriod % 7 > 0 && (
-                      <p className={`text-xl font-black ${cycleData.heroText} opacity-70 uppercase tracking-widest -mt-4`}>
-                        e {cycleData.daysToPeriod % 7} giorni
-                      </p>
+                    {cycleData.isFertile && (
+                      <div className="inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-purple-400/80 text-white backdrop-blur-sm border border-white/40 animate-pulse">
+                        Finestra Fertile
+                      </div>
                     )}
                   </div>
                   
-                  <p className={`text-2xl font-black ${cycleData.heroText} mb-10`}>{cycleData.status}</p>
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="flex items-baseline gap-1">
+                      <span className={`text-6xl font-black font-display tracking-tighter ${cycleData.heroText} drop-shadow-sm`}>
+                        {cycleData.ringWeek === 4 ? 'P' : cycleData.ringWeek}
+                      </span>
+                      <span className={`text-sm font-black ${cycleData.heroText} opacity-70 uppercase tracking-widest`}>
+                        {cycleData.ringWeek === 4 ? 'ausa' : 'Sett.'}
+                      </span>
+                    </div>
+                    <div className="h-10 w-px bg-white/20" />
+                    <div>
+                      <p className={`text-lg font-black ${cycleData.heroText} leading-tight`}>{cycleData.status}</p>
+                      <p className={`text-[10px] font-bold ${cycleData.heroText} opacity-60 uppercase tracking-widest`}>
+                        {cycleData.status === 'Anello inserito' 
+                          ? `Giorno ${cycleData.diffInsDays + 1} di 21` 
+                          : cycleData.daysToPeriod === 0 ? 'In corso' : `Ciclo tra ${cycleData.daysToPeriod} gg`}
+                      </p>
+                    </div>
+                  </div>
 
                   {/* Progress Bar - Android Style */}
-                  <div className="space-y-4">
-                    <div className="h-5 w-full bg-white/40 rounded-full overflow-hidden backdrop-blur-sm border border-white/20">
+                  <div className="space-y-2">
+                    <div className="h-3 w-full bg-white/40 rounded-full overflow-hidden backdrop-blur-sm border border-white/20">
                       <motion.div 
                         initial={{ width: 0 }}
                         animate={{ width: `${cycleData.progress}%` }}
                         className="h-full bg-white rounded-full shadow-lg"
                       />
                     </div>
-                    <div className={`flex justify-between text-[11px] font-black ${cycleData.heroText} opacity-50 uppercase tracking-widest`}>
-                      <span>Inizio</span>
-                      <span>Fine</span>
-                    </div>
                   </div>
                 </div>
               </motion.div>
 
-              {/* Grid Details - Android Style */}
-              <div className="grid grid-cols-2 gap-6">
+              {/* Grid Details - Compact 2 Columns */}
+              <div className="grid grid-cols-2 gap-4">
                 <motion.div 
-                  whileHover={{ scale: 1.05, y: -4 }}
-                  className="m3-card-elevated bg-white/70 shadow-lg shadow-pink-500/5"
+                  whileHover={{ scale: 1.02 }}
+                  className="m3-card-elevated bg-white/70 p-4 rounded-[24px] shadow-lg shadow-pink-500/5"
                 >
-                  <p className="text-[10px] font-black text-pink-600/50 uppercase tracking-widest mb-3">Inizio Ciclo</p>
-                  <p className="text-2xl font-black font-display text-pink-600 leading-none mb-1">
-                    {formatDate(cycleData.activeCycle.periodStart).split(' ')[1]} {formatDate(cycleData.activeCycle.periodStart).split(' ')[2]}
-                  </p>
-                  <p className="text-xs font-black text-pink-500 uppercase tracking-widest">
-                    {formatDate(cycleData.activeCycle.periodStart).split(' ')[0]}
-                  </p>
+                  <p className="text-[9px] font-black text-pink-600/50 uppercase tracking-widest mb-1">Inizio Ciclo</p>
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-xl font-black font-display text-pink-600">
+                      {formatDate(cycleData.activeCycle.periodStart).split(' ')[1]} {formatDate(cycleData.activeCycle.periodStart).split(' ')[2]}
+                    </p>
+                    <p className="text-[10px] font-bold text-pink-400 uppercase">
+                      {formatDate(cycleData.activeCycle.periodStart).split(' ')[0]}
+                    </p>
+                  </div>
                 </motion.div>
+                
                 <motion.div 
-                  whileHover={{ scale: 1.05, y: -4 }}
-                  className="m3-card-elevated bg-white/70 shadow-lg shadow-indigo-500/5"
+                  whileHover={{ scale: 1.02 }}
+                  className="m3-card-elevated bg-white/70 p-4 rounded-[24px] shadow-lg shadow-indigo-500/5"
                 >
-                  <p className="text-[10px] font-black text-indigo-600/50 uppercase tracking-widest mb-3">Fine Ciclo</p>
-                  <p className="text-2xl font-black font-display text-indigo-600 leading-none mb-1">
-                    {formatDate(cycleData.activeCycle.periodEnd).split(' ')[1]} {formatDate(cycleData.activeCycle.periodEnd).split(' ')[2]}
-                  </p>
-                  <p className="text-xs font-black text-indigo-500 uppercase tracking-widest">
-                    {formatDate(cycleData.activeCycle.periodEnd).split(' ')[0]}
-                  </p>
+                  <p className="text-[9px] font-black text-indigo-600/50 uppercase tracking-widest mb-1">Fine Ciclo</p>
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-xl font-black font-display text-indigo-600">
+                      {formatDate(cycleData.activeCycle.periodEnd).split(' ')[1]} {formatDate(cycleData.activeCycle.periodEnd).split(' ')[2]}
+                    </p>
+                    <p className="text-[10px] font-bold text-indigo-400 uppercase">
+                      {formatDate(cycleData.activeCycle.periodEnd).split(' ')[0]}
+                    </p>
+                  </div>
                 </motion.div>
+
+                {settings.showOvulation && (
+                  <motion.div 
+                    whileHover={{ scale: 1.02 }}
+                    className="m3-card-elevated bg-white/70 p-4 rounded-[24px] shadow-lg shadow-purple-500/5 col-span-2"
+                  >
+                    <div className="flex justify-between items-start mb-1">
+                      <p className="text-[9px] font-black text-purple-600/50 uppercase tracking-widest">Ovulazione Teorica</p>
+                      <Info className="w-3 h-3 text-purple-600/30" />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-baseline gap-2">
+                        <p className="text-xl font-black font-display text-purple-600">
+                          {formatDate(cycleData.activeCycle.ovulation).split(' ')[1]} {formatDate(cycleData.activeCycle.ovulation).split(' ')[2]}
+                        </p>
+                        <p className="text-[10px] font-bold text-purple-400 uppercase">
+                          {formatDate(cycleData.activeCycle.ovulation).split(' ')[0]}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[9px] font-black text-purple-600/40 uppercase tracking-widest">Finestra Fertile</p>
+                        <p className="text-[10px] font-bold text-purple-600">
+                          {formatDate(cycleData.activeCycle.fertileStart)} — {formatDate(cycleData.activeCycle.fertileEnd)}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
               </div>
 
-              {/* Secondary Details - Android Style */}
-              <div className="m3-card space-y-8 bg-white/60 shadow-xl border-white/60">
+              {/* Action Cards - Compact */}
+              <div className="m3-card p-5 bg-white/60 shadow-xl border-white/60 rounded-[24px] space-y-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-5">
-                    <div className="w-12 h-12 bg-rose-200 rounded-[20px] flex items-center justify-center shadow-md shadow-rose-200/50">
-                      <ArrowDownCircle className="w-6 h-6 text-rose-700" />
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-rose-100 rounded-[14px] flex items-center justify-center">
+                      <ArrowDownCircle className="w-5 h-5 text-rose-700" />
                     </div>
                     <div>
-                      <p className="text-[10px] font-black text-rose-600/60 uppercase tracking-widest mb-1">Rimozione Anello</p>
-                      <p className="text-lg font-black text-m3-on-surface">{formatDate(cycleData.activeCycle.removal)}</p>
+                      <p className="text-[9px] font-black text-rose-600/60 uppercase tracking-widest">Rimozione Anello</p>
+                      <p className="text-base font-black text-m3-on-surface">{formatDate(cycleData.activeCycle.removal)}</p>
                     </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] font-bold text-rose-400 uppercase tracking-widest">
+                      {Math.ceil((cycleData.activeCycle.removal.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) <= 0 ? 'Oggi' : `Tra ${Math.ceil((cycleData.activeCycle.removal.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))} gg`}
+                    </p>
                   </div>
                 </div>
 
-                <div className="h-px bg-m3-surface-variant/50" />
+                <div className="h-px bg-m3-surface-variant/20" />
 
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-5">
-                    <div className="w-12 h-12 bg-indigo-200 rounded-[20px] flex items-center justify-center shadow-md shadow-indigo-200/50">
-                      <ArrowUpCircle className="w-6 h-6 text-indigo-700" />
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-indigo-100 rounded-[14px] flex items-center justify-center">
+                      <ArrowUpCircle className="w-5 h-5 text-indigo-700" />
                     </div>
                     <div>
-                      <p className="text-[10px] font-black text-indigo-600/60 uppercase tracking-widest mb-1">Reinserimento</p>
-                      <p className="text-lg font-black text-m3-on-surface">{formatDate(cycleData.activeCycle.nextInsertion)}</p>
+                      <p className="text-[9px] font-black text-indigo-600/60 uppercase tracking-widest">Reinserimento</p>
+                      <p className="text-base font-black text-m3-on-surface">{formatDate(cycleData.activeCycle.nextInsertion)}</p>
                     </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">
+                      {Math.ceil((cycleData.activeCycle.nextInsertion.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) <= 0 ? 'Oggi' : `Tra ${Math.ceil((cycleData.activeCycle.nextInsertion.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))} gg`}
+                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Timeline Futura - Android Style */}
-              <div className="space-y-6">
-                <h3 className="text-xs font-black text-m3-on-surface-variant/50 uppercase tracking-[0.4em] px-4">Calendario</h3>
-                <div className="space-y-4">
-                  {cycleData.futureCycles.slice(1).map((cycle, idx) => (
+              {/* Timeline Futura - Compact List */}
+              <div className="space-y-3 pt-2">
+                <h3 className="text-[9px] font-black text-m3-on-surface-variant/40 uppercase tracking-[0.4em] px-4">Prossimi Cicli</h3>
+                <div className="space-y-2">
+                  {cycleData.futureCycles.slice(1, 4).map((cycle, idx) => (
                     <motion.div 
                       key={idx} 
-                      whileHover={{ x: 12, scale: 1.02 }}
-                      className="m3-card-elevated flex items-center justify-between bg-white/70 shadow-md"
+                      whileHover={{ x: 4 }}
+                      className="m3-card-elevated flex items-center justify-between bg-white/70 p-3 rounded-[20px] shadow-sm"
                     >
-                      <div className="flex items-center gap-5">
-                        <div className="w-12 h-12 bg-gradient-to-br from-pink-100 to-indigo-100 rounded-[20px] flex items-center justify-center">
-                          <Clock className="w-6 h-6 text-m3-primary" />
+                      <div className="flex items-center gap-4">
+                        <div className="w-8 h-8 bg-gradient-to-br from-pink-50 to-indigo-50 rounded-[12px] flex items-center justify-center">
+                          <Clock className="w-4 h-4 text-m3-primary/40" />
                         </div>
                         <div>
-                          <p className="text-lg font-black text-m3-on-surface capitalize font-display">
+                          <p className="text-sm font-black text-m3-on-surface capitalize font-display">
                             {cycle.periodStart.toLocaleDateString('it-IT', { month: 'long' })}
                           </p>
-                          <p className="text-[10px] font-bold text-m3-on-surface-variant/70 tracking-widest">
+                          <p className="text-[9px] font-bold text-m3-on-surface-variant/50 tracking-widest">
                             {formatDate(cycle.periodStart)} — {formatDate(cycle.periodEnd)}
                           </p>
                         </div>
+                      </div>
+                      <div className="text-right px-2">
+                        <p className="text-[9px] font-black text-pink-500/40 uppercase tracking-widest">Inizio</p>
+                        <p className="text-[10px] font-bold text-pink-500">{formatDate(cycle.periodStart).split(' ')[1]} {formatDate(cycle.periodStart).split(' ')[2]}</p>
                       </div>
                     </motion.div>
                   ))}
@@ -426,15 +571,15 @@ export default function App() {
               </div>
             </motion.div>
           ) : (
-            <div className="text-center py-32 px-10">
-              <div className="bg-gradient-to-br from-pink-500 to-purple-600 w-28 h-28 rounded-[48px] flex items-center justify-center mx-auto mb-12 shadow-2xl shadow-pink-500/40">
-                <CalendarIcon className="text-white w-12 h-12" />
+            <div className="text-center py-20 px-6">
+              <div className="bg-gradient-to-br from-pink-500 to-purple-600 w-20 h-20 rounded-[32px] flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-pink-500/40">
+                <CalendarIcon className="text-white w-10 h-10" />
               </div>
-              <h2 className="text-3xl font-black text-m3-on-surface font-display mb-4">Benvenuto</h2>
-              <p className="text-m3-on-surface-variant/60 text-base font-medium mb-12 leading-relaxed px-4">Configura la data dell'ultimo inserimento per monitorare il ciclo della tua partner.</p>
+              <h2 className="text-2xl font-black text-m3-on-surface font-display mb-3">Benvenuto</h2>
+              <p className="text-m3-on-surface-variant/60 text-sm font-medium mb-10 leading-relaxed px-4">Configura la data dell'ultimo inserimento per monitorare il ciclo della tua partner.</p>
               <button 
                 onClick={() => setShowSettings(true)}
-                className="m3-button-primary shadow-xl shadow-pink-500/30 w-full py-5 text-lg bg-gradient-to-r from-pink-500 to-purple-600 hover:scale-[1.02] active:scale-95"
+                className="m3-button-primary shadow-xl shadow-pink-500/30 w-full py-4 text-base bg-gradient-to-r from-pink-500 to-purple-600 hover:scale-[1.02] active:scale-95"
               >
                 Configura Ora
               </button>
@@ -443,8 +588,8 @@ export default function App() {
         </AnimatePresence>
 
         {/* Footer */}
-        <footer className="mt-24 text-center pb-16 opacity-40">
-          <p className="text-[10px] font-black text-pink-600 uppercase tracking-[0.6em]">Partner Tracker • Ultra Vibrant</p>
+        <footer className="mt-12 text-center pb-12 opacity-40">
+          <p className="text-[9px] font-black text-pink-600 uppercase tracking-[0.6em]">Partner Tracker • Pro Edition</p>
         </footer>
       </div>
     </div>
